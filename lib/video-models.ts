@@ -31,6 +31,10 @@ export async function getVideoModelConfigs(): Promise<Record<string, VideoModelC
         aspectRatios: m.supported_aspect_ratios ?? [],
         supportsAudio: m.generate_audio === true,
         passthroughParameters: m.allowed_passthrough_parameters ?? [],
+        // Kept as published; unusual shapes are handled by the pricing layer rather
+        // than rejected here, so one odd model cannot break model discovery.
+        pricingSkus:
+          m.pricing_skus && typeof m.pricing_skus === "object" ? m.pricing_skus : {},
         ...(REQUIRES_AUDIO_MODELS.has(m.id) && { requiresAudio: true }),
       };
     }

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import type { MediaResult } from "@/lib/types";
 import type { VideoStatus } from "@/hooks/use-video-generation";
 import { isCreditError } from "@/lib/credit-error";
+import { formatActualCost } from "@/lib/video-pricing";
 import CreditErrorNotice from "./credit-error-notice";
 
 function ElapsedTime() {
@@ -123,6 +124,17 @@ export default function ImageResult({
         <h2 className="text-base font-heading font-bold tracking-tight text-glow-sm">// RESULT</h2>
         <div className="flex items-center gap-3">
           <span className="text-xs text-muted tracking-wide">{result.model}</span>
+          {result.type === "video" && result.costUsd !== undefined && (
+            <span
+              className="text-xs text-muted tracking-wide"
+              title="Actual cost reported by OpenRouter for this generation"
+            >
+              Actual cost{" "}
+              <span className="text-accent font-mono">
+                {formatActualCost(result.costUsd)}
+              </span>
+            </span>
+          )}
           {!isVideo && onAddAsInputImage && (
             <button
               onClick={() => {

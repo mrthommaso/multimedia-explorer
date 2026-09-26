@@ -18,6 +18,8 @@ export interface VideoGenerationState {
   videoUrl: string | null;
   jobId: string | null;
   model: string | null;
+  /** Actual cost in USD, from the job's `usage.cost` once it completes. */
+  costUsd: number | null;
 }
 
 interface SubmitParams {
@@ -41,6 +43,7 @@ export function useVideoGeneration(apiKey: string | null) {
     videoUrl: null,
     jobId: null,
     model: null,
+    costUsd: null,
   });
 
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -81,6 +84,7 @@ export function useVideoGeneration(apiKey: string | null) {
         videoUrl: null,
         jobId: null,
         model: params.model,
+        costUsd: null,
       });
 
       try {
@@ -135,6 +139,7 @@ export function useVideoGeneration(apiKey: string | null) {
             } = await parseJsonResponse<{
               status?: string;
               error?: string;
+              usage?: { cost?: number };
             }>(pollRes);
 
             if (!pollOk || !pollData) {
@@ -174,6 +179,9 @@ export function useVideoGeneration(apiKey: string | null) {
                   ...s,
                   status: "completed",
                   videoUrl: url,
+                  // Reported by OpenRouter on the completed job; absent for some jobs.
+                  costUsd:
+                    typeof pollData.usage?.cost === "number" ? pollData.usage.cost : null,
                 }));
               } catch {
                 setState((s) => ({
@@ -233,6 +241,7 @@ export function useVideoGeneration(apiKey: string | null) {
       videoUrl: null,
       jobId: null,
       model: null,
+      costUsd: null,
     });
   }, []);
 
