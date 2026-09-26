@@ -1,5 +1,6 @@
 import { OpenRouter } from "@openrouter/sdk";
-import { type VideoModelConfig, REQUIRES_AUDIO_MODELS } from "@/lib/types";
+import { type VideoModelConfig, type ImageModelConfig, REQUIRES_AUDIO_MODELS } from "@/lib/types";
+import { getImageModelConfigs } from "@/lib/image-models";
 
 type ModelEntry = { id: string; label: string };
 type CacheData = {
@@ -7,6 +8,7 @@ type CacheData = {
   video: ModelEntry[];
   text: ModelEntry[];
   videoModelConfigs: Record<string, VideoModelConfig>;
+  imageModelConfigs: Record<string, ImageModelConfig>;
 };
 
 let cache: { data: CacheData; ts: number } | null = null;
@@ -59,14 +61,15 @@ export async function GET() {
   }
 
   try {
-    const [image, video, text, videoModelConfigs] = await Promise.all([
+    const [image, video, text, videoModelConfigs, imageModelConfigs] = await Promise.all([
       fetchByModality("image"),
       fetchByModality("video"),
       fetchByModality("text"),
       fetchVideoModelConfigs(),
+      getImageModelConfigs(),
     ]);
 
-    const result: CacheData = { image, video, text, videoModelConfigs };
+    const result: CacheData = { image, video, text, videoModelConfigs, imageModelConfigs };
     cache = { data: result, ts: Date.now() };
 
     return Response.json(result);

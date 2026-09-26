@@ -56,3 +56,20 @@ export interface HistoryEntry {
   generateAudio?: boolean;
   videoJobId?: string;
 }
+
+/**
+ * How an image model has to be called, derived from OpenRouter's catalogue metadata.
+ *
+ * Models that can emit text are chat models and go through chat completions; models whose
+ * only output modality is `image` are served by the dedicated `POST /api/v1/images`
+ * endpoint instead. The parameter lists come from that endpoint's own model catalogue, so
+ * we only send options a given model actually accepts.
+ */
+export interface ImageModelConfig {
+  endpoint: "chat" | "images";
+  aspectRatios: string[];
+  resolutions: string[];
+  /** Image-to-image models reject a request that has no reference image. */
+  requiresReference: boolean;
+  maxReferences: number;
+}

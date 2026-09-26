@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readOpenRouterKey } from "@/lib/api-auth";
 
 const OPENROUTER_VIDEO_URL = "https://openrouter.ai/api/v1/videos";
 
@@ -6,8 +7,8 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ jobId: string }> }
 ) {
-  const authHeader = request.headers.get("authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
+  const apiKey = readOpenRouterKey(request);
+  if (!apiKey) {
     return NextResponse.json({ error: "Missing API key" }, { status: 401 });
   }
 
@@ -19,7 +20,7 @@ export async function GET(
       `${OPENROUTER_VIDEO_URL}/${jobId}/content?index=${index}`,
       {
         headers: {
-          Authorization: authHeader,
+          Authorization: `Bearer ${apiKey}`,
           "HTTP-Referer": "http://localhost:3000",
           "X-Title": "Multimedia Explorer",
         },

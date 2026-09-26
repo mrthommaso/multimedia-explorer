@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { SignInButton } from "@/components/auth-button";
 import { useOpenRouterAuth } from "@/hooks/use-openrouter-auth";
+import AccessKeyGate from "@/components/access-key-gate";
+import AuthStatus from "@/components/auth-status";
 import type { BrandData } from "@/components/moodboard";
 import AccordionCards from "@/components/accordion-cards";
 import GenerateForm from "@/components/generate-form";
@@ -19,6 +20,7 @@ import {
 } from "@/lib/types";
 import { useModels } from "@/hooks/use-models";
 import { useVideoGeneration } from "@/hooks/use-video-generation";
+import { openRouterKeyHeaders } from "@/lib/api-auth";
 import {
   saveImage,
   loadImage,
@@ -44,10 +46,8 @@ function stripDataUrls(images: ReferenceImage[]): ReferenceImage[] {
 }
 
 export default function Home() {
-  const { apiKey: authApiKey, signOut } = useOpenRouterAuth();
-  const envKey = process.env.NEXT_PUBLIC_OPENROUTER_API_KEY ?? null;
-  const apiKey = envKey || authApiKey;
-  const { imageModels, videoModels, textModels, videoModelConfigs, loading: modelsLoading } = useModels();
+  const { apiKey, isReady, signOut } = useOpenRouterAuth();
+  const { imageModels, videoModels, textModels, videoModelConfigs, imageModelConfigs, loading: modelsLoading } = useModels();
   const [brandData, setBrandData] = useState<BrandData | null>(null);
   const [moodModel, setMoodModel] = useState(DEFAULT_TEXT_MODEL);
   const [model, setModel] = useState("");
@@ -98,12 +98,21 @@ export default function Home() {
     mediaResult: MediaResult | null;
   } | null>(null);
 
-  // Auto-select first image model once loaded (if no model set yet)
+  /**
+   * First image model a fresh visitor can actually use: image-to-image models reject a
+   * prompt-only request, so they never make a sensible default.
+   */
+  const defaultImageModel = useCallback(() => {
+    const usable = imageModels.find((m) => !imageModelConfigs[m.id]?.requiresReference);
+    return (usable ?? imageModels[0])?.id ?? "";
+  }, [imageModels, imageModelConfigs]);
+
+  // Auto-select first usable image model once loaded (if no model set yet)
   useEffect(() => {
     if (!model && imageModels.length > 0) {
-      setModel(imageModels[0].id);
+      setModel(defaultImageModel());
     }
-  }, [imageModels, model]);
+  }, [imageModels, model, defaultImageModel]);
 
   // Persist draft form state to sessionStorage so it survives OAuth redirects
   useEffect(() => {
@@ -194,10 +203,6 @@ export default function Home() {
     localStorage.setItem(HISTORY_KEY, JSON.stringify(toStore));
   }
 
-  function handleLogout() {
-    signOut();
-  }
-
   function handleMoodModelChange(m: string) {
     setMoodModel(m);
     localStorage.setItem("mood_model", m);
@@ -270,7 +275,7 @@ export default function Home() {
     // Reset all state
     setBrandData(null);
     setMoodModel(DEFAULT_TEXT_MODEL);
-    setModel(imageModels[0]?.id ?? "");
+    setModel(defaultImageModel());
     setReferenceImages([]);
     setAspectRatio("1:1");
     setResolution("1K");
@@ -407,7 +412,7 @@ export default function Home() {
       try {
         const res = await fetch(
           `/api/video/${entry.videoJobId}/content?index=0`,
-          { headers: { Authorization: `Bearer ${apiKey}` } },
+          { headers: openRouterKeyHeaders(apiKey) },
         );
         if (!res.ok) throw new Error("expired");
         const blob = await res.blob();
@@ -498,16 +503,7 @@ export default function Home() {
             >
               [ ? ]
             </button>
-            {apiKey ? (
-              <button
-                onClick={handleLogout}
-                className="px-4 py-2.5 text-xs tracking-wide rounded-lg border border-border text-muted hover:text-foreground hover:border-accent/40 hover:shadow-[0_0_10px_rgba(59,130,246,0.1)] transition-all cursor-pointer"
-              >
-                Sign out
-              </button>
-            ) : (
-              <SignInButton variant="default" size="sm" />
-            )}
+            <AuthStatus refreshSignal={history.length} />
           </div>
         </div>
       </header>
@@ -673,7 +669,7 @@ export default function Home() {
       )}
 
       {/* What is this? modal */}
-      {showWhatIsThis && (
+      {showWhatIsThis && apiKey && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
           onClick={() => dismissIntro()}
@@ -760,6 +756,9 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {/* Access key entry — shown until a key is available for this session */}
+      {isReady && !apiKey && <AccessKeyGate />}
     </div>
   );
 }

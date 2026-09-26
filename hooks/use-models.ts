@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { VideoModelConfig } from "@/lib/types";
+import type { VideoModelConfig, ImageModelConfig } from "@/lib/types";
 
 export interface ModelOption {
   id: string;
@@ -13,6 +13,7 @@ interface ModelsState {
   videoModels: ModelOption[];
   textModels: ModelOption[];
   videoModelConfigs: Record<string, VideoModelConfig>;
+  imageModelConfigs: Record<string, ImageModelConfig>;
   loading: boolean;
 }
 
@@ -21,6 +22,7 @@ interface ApiResponse {
   video: ModelOption[];
   text: ModelOption[];
   videoModelConfigs: Record<string, VideoModelConfig>;
+  imageModelConfigs: Record<string, ImageModelConfig>;
 }
 
 let cachedData: ApiResponse | null = null;
@@ -30,6 +32,7 @@ export function useModels(): ModelsState {
   const [videoModels, setVideoModels] = useState<ModelOption[]>(cachedData?.video ?? []);
   const [textModels, setTextModels] = useState<ModelOption[]>(cachedData?.text ?? []);
   const [videoModelConfigs, setVideoModelConfigs] = useState<Record<string, VideoModelConfig>>(cachedData?.videoModelConfigs ?? {});
+  const [imageModelConfigs, setImageModelConfigs] = useState<Record<string, ImageModelConfig>>(cachedData?.imageModelConfigs ?? {});
   const [loading, setLoading] = useState(!cachedData);
 
   useEffect(() => {
@@ -46,6 +49,7 @@ export function useModels(): ModelsState {
         setVideoModels(data.video);
         setTextModels(data.text ?? []);
         setVideoModelConfigs(data.videoModelConfigs ?? {});
+        setImageModelConfigs(data.imageModelConfigs ?? {});
       })
       .catch(() => {
         // Fail silently — dropdowns will just be empty
@@ -59,5 +63,5 @@ export function useModels(): ModelsState {
     };
   }, []);
 
-  return { imageModels, videoModels, textModels, videoModelConfigs, loading };
+  return { imageModels, videoModels, textModels, videoModelConfigs, imageModelConfigs, loading };
 }
