@@ -25,7 +25,25 @@ function stripProviderPrefix(name: string): string {
   return colonIdx !== -1 ? name.slice(colonIdx + 2) : name;
 }
 
-async function fetchByModality(modality: string): Promise<ModelEntry[]> {
+/**
+ * Keep the provider visible in media model labels, rendered as `Provider — Model`.
+ *
+ * OpenRouter names models `Provider: Model`. Dropping the provider makes the picker
+ * ambiguous, since some families differ only by who serves them — "Video v3.0 Pro" and
+ * "Video v3.0 Standard" say nothing about being Kling. Names without the prefix are left
+ * as they are.
+ */
+function formatMediaModelLabel(name: string): string {
+  const colonIdx = name.indexOf(": ");
+  return colonIdx !== -1
+    ? `${name.slice(0, colonIdx)} — ${name.slice(colonIdx + 2)}`
+    : name;
+}
+
+async function fetchByModality(
+  modality: string,
+  formatLabel: (name: string) => string
+): Promise<ModelEntry[]> {
   // The SDK doesn't support output_modalities as a query param yet,
   // so we pass it via serverURL to append it to the request.
   const response = await client.models.list(undefined, {
@@ -34,7 +52,7 @@ async function fetchByModality(modality: string): Promise<ModelEntry[]> {
 
   return response.data.map((m) => ({
     id: m.id,
-    label: stripProviderPrefix(m.name),
+    label: formatLabel(m.name),
   }));
 }
 
@@ -45,9 +63,11 @@ export async function GET() {
 
   try {
     const [image, video, text, videoModelConfigs, imageModelConfigs] = await Promise.all([
-      fetchByModality("image"),
-      fetchByModality("video"),
-      fetchByModality("text"),
+      fetchByModality("image", formatMediaModelLabel),
+      fetchByModality("video", formatMediaModelLabel),
+      // Text models appear in narrow secondary pickers and their names are already
+      // distinctive, so they keep the existing bare-name labels.
+      fetchByModality("text", stripProviderPrefix),
       getVideoModelConfigs(),
       getImageModelConfigs(),
     ]);
