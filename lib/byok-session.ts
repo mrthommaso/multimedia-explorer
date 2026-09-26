@@ -37,7 +37,8 @@ export function setSessionKey(key: string): void {
   try {
     sessionStorage.setItem(SESSION_KEY, key);
   } catch {
-    // Without storage the key still lives in memory for this page load.
+    // Storage can be blocked (private mode, blocked site data). The write is simply lost,
+    // so the next read finds no key and the entry screen stays up.
   }
   notifyListeners();
 }

@@ -143,10 +143,10 @@ export async function POST(request: NextRequest) {
       ].join("\n"))
     : null;
 
-  // Image-only models are not chat models and must use the dedicated images endpoint.
-  // If the catalogue is unreachable we fall through to the chat path, as upstream did.
+  // Models listed by /api/v1/images/models are served by the dedicated images endpoint;
+  // anything else stays on chat completions, including when the catalogue is unreachable.
   const imageModelConfig = (await getImageModelConfigs())[model];
-  if (imageModelConfig?.endpoint === "images") {
+  if (imageModelConfig) {
     return generateViaImagesEndpoint({
       apiKey,
       model,

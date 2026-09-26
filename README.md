@@ -108,8 +108,9 @@ All user data is client-side: metadata in `localStorage`, image blobs in `Indexe
 
 ## Getting started
 
-This project targets the Node.js 22 LTS line (see `.nvmrc`), which is also what Vercel
-runs by default — see [Node.js version note](#nodejs-version-note) before using Node 24.14+.
+This project pins the Node.js 22 LTS line via `engines` in `package.json` and `.nvmrc`.
+That is a deliberate choice for this repo, not a platform default — see
+[Node.js version note](#nodejs-version-note).
 
 ```bash
 bun install          # or: npm install
@@ -138,15 +139,23 @@ whose source is null. It is tracked as
 [vercel/next.js#90826](https://github.com/vercel/next.js/issues/90826) and
 [nodejs/undici#4940](https://github.com/nodejs/undici/issues/4940).
 
-Scope, if you do run Node 24.14+ locally:
+Scope, on an affected Node version:
 
 - Only `401` responses are affected — successful generations and other errors (400, 402, …)
   work normally. It is a confusing error message for a rejected key, not a broken pipeline.
 - Only the SDK-backed routes are affected (`/api/generate`, `/api/improve-prompt`,
   `/api/moodboard`, `/api/key`). The video routes use plain `fetch` and are unaffected.
-- **Vercel and any Node 22 deployment are not affected**, so no workaround is baked into the app.
 
-Use Node 22 (`nvm use`) for local development and key-rejection messages read correctly.
+Rather than work around it in application code, this project pins Node 22 so local
+development and deployment both run on a version without the regression:
+
+- `engines.node` is set to `22.x` in `package.json`
+- `.nvmrc` selects the same line locally (`nvm use`)
+
+Note that new Vercel projects currently default to Node 24.x, which falls in the affected
+range — so the pin is what makes the deployment runtime deterministic here. Confirm the
+project's Node version in **Project Settings → Build & Deployment → Node.js Version** if
+your platform does not pick it up from `engines`.
 
 ## Bring your own key (BYOK)
 
@@ -177,6 +186,9 @@ vercel                                            # or import the repo at vercel
 ```
 
 Vercel detects Next.js and needs no further configuration. Leave `NEXT_PUBLIC_OPENROUTER_API_KEY` **unset** in production — it is ignored there by design. No other environment variables are inherited from upstream.
+
+Check that the project builds on **Node 22**, which `engines.node` requests; see the
+[Node.js version note](#nodejs-version-note) for why this project pins it.
 
 To rotate access, revoke the key in the OpenRouter dashboard; the deployment itself holds nothing to rotate.
 
