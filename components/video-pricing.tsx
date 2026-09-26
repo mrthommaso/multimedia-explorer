@@ -67,12 +67,16 @@ export default function VideoPricing({
       {amount ? (
         <div className="pt-2 border-t border-border/60 flex items-baseline justify-between gap-4">
           <span className="text-xs text-muted">
-            {estimate.confidence === "exact" ? "Estimated cost" : "Estimated cost"}
+            Estimated cost
             {estimate.estimatedDurationRange && (
               <span className="text-muted/70">
                 {" "}
-                (~{estimate.estimatedDurationRange.min}–
-                {estimate.estimatedDurationRange.max}s of speech)
+                (~
+                {estimate.estimatedDurationRange.min ===
+                estimate.estimatedDurationRange.max
+                  ? estimate.estimatedDurationRange.min
+                  : `${estimate.estimatedDurationRange.min}–${estimate.estimatedDurationRange.max}`}
+                s of speech)
               </span>
             )}
           </span>
