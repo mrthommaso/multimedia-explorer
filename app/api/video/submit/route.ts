@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readOpenRouterKey } from "@/lib/api-auth";
 import { parseJsonResponse, fallbackErrorMessage } from "@/lib/safe-json";
+import { buildProviderOptions } from "@/lib/video-models";
 
 const OPENROUTER_VIDEO_URL = "https://openrouter.ai/api/v1/videos";
 
@@ -31,6 +32,12 @@ export async function POST(request: NextRequest) {
   if (Array.isArray(body.input_references) && body.input_references.length > 0) {
     payload.input_references = body.input_references;
   }
+
+  // Provider-specific controls, narrowed to this model's allowed_passthrough_parameters
+  // and nested into provider.options.<slug>.parameters. Anything unknown is dropped here
+  // rather than trusted from the browser.
+  const provider = await buildProviderOptions(model, body.providerOptions);
+  if (provider) payload.provider = provider;
 
   try {
     const res = await fetch(OPENROUTER_VIDEO_URL, {

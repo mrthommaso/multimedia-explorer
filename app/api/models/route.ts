@@ -1,6 +1,7 @@
 import { OpenRouter } from "@openrouter/sdk";
-import { type VideoModelConfig, type ImageModelConfig, REQUIRES_AUDIO_MODELS } from "@/lib/types";
+import { type VideoModelConfig, type ImageModelConfig } from "@/lib/types";
 import { getImageModelConfigs } from "@/lib/image-models";
+import { getVideoModelConfigs } from "@/lib/video-models";
 
 type ModelEntry = { id: string; label: string };
 type CacheData = {
@@ -22,24 +23,6 @@ const client = new OpenRouter({
 function stripProviderPrefix(name: string): string {
   const colonIdx = name.indexOf(": ");
   return colonIdx !== -1 ? name.slice(colonIdx + 2) : name;
-}
-
-async function fetchVideoModelConfigs(): Promise<Record<string, VideoModelConfig>> {
-  const res = await fetch("https://openrouter.ai/api/v1/videos/models");
-  if (!res.ok) return {};
-  const json = await res.json();
-  const models = Array.isArray(json) ? json : json.data ?? [];
-  const configs: Record<string, VideoModelConfig> = {};
-  for (const m of models) {
-    configs[m.id] = {
-      durations: m.supported_durations ?? [],
-      resolutions: m.supported_resolutions ?? [],
-      aspectRatios: m.supported_aspect_ratios ?? [],
-      supportsAudio: m.generate_audio === true,
-      ...(REQUIRES_AUDIO_MODELS.has(m.id) && { requiresAudio: true }),
-    };
-  }
-  return configs;
 }
 
 async function fetchByModality(modality: string): Promise<ModelEntry[]> {
@@ -65,7 +48,7 @@ export async function GET() {
       fetchByModality("image"),
       fetchByModality("video"),
       fetchByModality("text"),
-      fetchVideoModelConfigs(),
+      getVideoModelConfigs(),
       getImageModelConfigs(),
     ]);
 

@@ -226,7 +226,7 @@ export default function Home() {
         const config = resolveVideoConfig(newModel);
         setAspectRatio(config.aspectRatios[0]);
         setResolution(config.resolutions.includes("720p") ? "720p" : config.resolutions[0]);
-        setDuration(config.durations[0]);
+        if (config.durations.length > 0) setDuration(config.durations[0]);
       } else {
         setAspectRatio("1:1");
         setResolution("1K");
@@ -235,7 +235,8 @@ export default function Home() {
     } else if (willBeVideo) {
       // Switching between video models — reset to valid values for new model
       const config = resolveVideoConfig(newModel);
-      if (!config.durations.includes(duration)) setDuration(config.durations[0]);
+      if (config.durations.length > 0 && !config.durations.includes(duration))
+        setDuration(config.durations[0]);
       if (!config.resolutions.includes(resolution)) setResolution(config.resolutions.includes("720p") ? "720p" : config.resolutions[0]);
       if (!config.aspectRatios.includes(aspectRatio)) setAspectRatio(config.aspectRatios[0]);
     }
@@ -372,10 +373,11 @@ export default function Home() {
     model: string;
     prompt: string;
     aspect_ratio: string;
-    duration: number;
+    duration?: number;
     resolution: string;
-    generate_audio: boolean;
+    generate_audio?: boolean;
     input_references?: Array<{ type: "image_url"; image_url: { url: string } }>;
+    providerOptions?: Record<string, unknown>;
   }) {
     setMediaResult(null);
     submitVideo(params);
@@ -565,6 +567,7 @@ export default function Home() {
                 onResult={handleResult}
                 onLoading={setGenerating}
                 isVideoModel={isVideoModel}
+                videoConfig={videoConfig}
                 duration={duration}
                 generateAudio={generateAudio}
                 onVideoSubmit={handleVideoSubmit}

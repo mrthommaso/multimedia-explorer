@@ -76,6 +76,7 @@ export default function AccordionCards({
           resolution={resolution}
           isVideoModel={isVideoModel}
           duration={duration}
+          showDuration={(videoConfig?.durations.length ?? 0) > 0}
         />
       ),
     },

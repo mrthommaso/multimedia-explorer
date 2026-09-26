@@ -14,18 +14,21 @@ export function OutputCardHeader({
   resolution,
   isVideoModel,
   duration,
+  showDuration = true,
 }: {
   aspectRatio: string;
   resolution: string;
   isVideoModel?: boolean;
   duration?: number;
+  /** False for models whose length is not a setting, e.g. script-driven avatars. */
+  showDuration?: boolean;
 }) {
   return (
     <div>
       <div className="text-sm font-medium tracking-wide">Output Settings</div>
       <div className="text-xs text-muted mt-1 tracking-wide">
         {aspectRatio} / {resolution}
-        {isVideoModel && duration ? ` / ${duration}s` : ""}
+        {isVideoModel && showDuration && duration ? ` / ${duration}s` : ""}
       </div>
     </div>
   );
@@ -113,8 +116,9 @@ export function OutputCardBody({
         </div>
       </div>
 
-      {videoConfig && (
+      {videoConfig && (videoConfig.durations.length > 0 || videoConfig.supportsAudio) && (
         <div className="flex gap-6 items-end">
+          {videoConfig.durations.length > 0 && (
           <div>
             <label className="block text-[10px] font-medium text-muted uppercase tracking-[0.15em] mb-2">
               Duration
@@ -136,6 +140,7 @@ export function OutputCardBody({
               ))}
             </div>
           </div>
+          )}
 
           {videoConfig.supportsAudio && (
             <label
