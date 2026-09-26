@@ -2,8 +2,10 @@ import type { VideoModelConfig } from "@/lib/types";
 
 /**
  * Pricing for video models, derived from the `pricing_skus` map OpenRouter publishes per
- * model. Nothing here is model-specific: SKU keys encode their own dimensions, so the
- * rules below read those dimensions rather than knowing anything about a given provider.
+ * model. Generic SKU parsing and matching are model-independent: SKU keys encode their own
+ * dimensions, so those rules read the dimensions rather than knowing anything about a given
+ * provider. Model-specific pricing formulas are kept in small explicit profiles only where
+ * OpenRouter documents them.
  *
  * Keys seen in the live catalogue take the form
  *   `[<input mode>_]<unit>[_<resolution>][_with(out)_audio][_with_video_input]`
