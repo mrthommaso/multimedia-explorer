@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { ModelOption } from "@/hooks/use-models";
 import { parseJsonResponse, fallbackErrorMessage } from "@/lib/safe-json";
+import { openRouterKeyHeaders } from "@/lib/api-auth";
 import AuthPrompt from "./auth-prompt";
 
 export interface BrandData {
@@ -85,7 +86,7 @@ export default function Moodboard({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
+          ...openRouterKeyHeaders(apiKey),
         },
         body: JSON.stringify(body),
       });

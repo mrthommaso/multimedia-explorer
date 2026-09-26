@@ -1,16 +1,117 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readOpenRouterKey } from "@/lib/api-auth";
 import { createClient } from "@/lib/openrouter";
+import { getImageModelConfigs } from "@/lib/image-models";
+import { parseJsonResponse, fallbackErrorMessage } from "@/lib/safe-json";
+import { type ImageModelConfig } from "@/lib/types";
 
 const VALID_ASPECT_RATIOS = new Set(["1:1", "16:9", "9:16", "4:3", "3:2"]);
 const EXTENDED_ASPECT_RATIOS = new Set(["1:4", "4:1", "1:8", "8:1"]);
 const VALID_RESOLUTIONS = new Set(["1K", "2K", "4K"]);
 
+const OPENROUTER_IMAGES_URL = "https://openrouter.ai/api/v1/images";
+
+/**
+ * Generation for models that only emit images. These are not chat models, so chat
+ * completions rejects them; OpenRouter serves them from a dedicated synchronous endpoint
+ * that answers with base64 image bytes.
+ *
+ * The result is normalised to the same `{ imageUrl, model }` shape the chat path returns,
+ * so the form, result card, history and IndexedDB storage stay untouched.
+ */
+async function generateViaImagesEndpoint({
+  apiKey,
+  model,
+  prompt,
+  systemContent,
+  config,
+  aspectRatio,
+  resolution,
+  referenceImages,
+}: {
+  apiKey: string;
+  model: string;
+  prompt: string;
+  systemContent: string | null;
+  config: ImageModelConfig;
+  aspectRatio: string;
+  resolution: string;
+  referenceImages: unknown;
+}) {
+  // There is no system role here, so brand guidance is folded into the prompt itself.
+  const payload: Record<string, unknown> = {
+    model,
+    prompt: systemContent ? `${systemContent}\n\n${prompt}` : prompt,
+  };
+
+  // Only send options this model declares — the accepted values differ per model.
+  if (config.aspectRatios.includes(aspectRatio)) payload.aspect_ratio = aspectRatio;
+  if (config.resolutions.includes(resolution)) payload.resolution = resolution;
+
+  if (Array.isArray(referenceImages) && referenceImages.length > 0 && config.maxReferences > 0) {
+    payload.input_references = referenceImages
+      .slice(0, config.maxReferences)
+      .map((url: string) => ({ type: "image_url", image_url: { url } }));
+  }
+
+  try {
+    const res = await fetch(OPENROUTER_IMAGES_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "http://localhost:3000",
+        "X-Title": "Multimedia Explorer",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const { ok, status, data, text } = await parseJsonResponse<{
+      data?: Array<{ b64_json?: string; url?: string; media_type?: string }>;
+      error?: string | { message?: string; metadata?: { raw?: string } };
+    }>(res);
+
+    if (!ok || !data || data.error) {
+      let errMsg: string;
+      if (data?.error) {
+        errMsg =
+          typeof data.error === "string"
+            ? data.error
+            : data.error.message || data.error.metadata?.raw || fallbackErrorMessage(status, text);
+      } else {
+        errMsg = fallbackErrorMessage(status, text);
+      }
+      return NextResponse.json({ error: errMsg }, { status: ok ? 400 : status });
+    }
+
+    const first = data.data?.[0];
+    const imageUrl = first?.url
+      ? first.url
+      : first?.b64_json
+        ? `data:${first.media_type ?? "image/png"};base64,${first.b64_json}`
+        : null;
+
+    if (!imageUrl) {
+      return NextResponse.json(
+        { error: "Could not extract image from response" },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ imageUrl, model });
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Failed to generate image" },
+      { status: 500 }
+    );
+  }
+}
+
 export async function POST(request: NextRequest) {
-  const authHeader = request.headers.get("authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
+  const apiKey = readOpenRouterKey(request);
+  if (!apiKey) {
     return NextResponse.json({ error: "Missing API key" }, { status: 401 });
   }
-  const apiKey = authHeader.slice(7);
 
   const { prompt, brandContext, model, aspectRatio, resolution, referenceImages } = await request.json();
 
@@ -28,6 +129,36 @@ export async function POST(request: NextRequest) {
       : "1:1";
   const validResolution = VALID_RESOLUTIONS.has(resolution) ? resolution : "1K";
 
+  const systemContent: string | null = brandContext
+    ? (brandContext.customSystemPrompt ??
+      [
+        "The user wants the generated image to match a specific brand identity. Apply the following brand guidelines to the image:",
+        "",
+        `Visual style: ${brandContext.stylePrompt}`,
+        `Color palette: ${brandContext.colors?.join(", ")}`,
+        `Personality: ${brandContext.personality?.join(", ")}`,
+        `Visual descriptors: ${brandContext.visualStyle?.join(", ")}`,
+        "",
+        "Incorporate these brand elements naturally into the image. The user's prompt below describes what to generate — the brand context above describes how it should look and feel.",
+      ].join("\n"))
+    : null;
+
+  // Models listed by /api/v1/images/models are served by the dedicated images endpoint;
+  // anything else stays on chat completions, including when the catalogue is unreachable.
+  const imageModelConfig = (await getImageModelConfigs())[model];
+  if (imageModelConfig) {
+    return generateViaImagesEndpoint({
+      apiKey,
+      model,
+      prompt,
+      systemContent,
+      config: imageModelConfig,
+      aspectRatio: validAspect,
+      resolution: validResolution,
+      referenceImages,
+    });
+  }
+
   // Build messages with brand context as a system message when available
   type ContentPart =
     | { type: "text"; text: string }
@@ -37,18 +168,7 @@ export async function POST(request: NextRequest) {
     | { role: "user"; content: string | ContentPart[] }
   > = [];
 
-  if (brandContext) {
-    const systemContent = brandContext.customSystemPrompt ?? [
-      "The user wants the generated image to match a specific brand identity. Apply the following brand guidelines to the image:",
-      "",
-      `Visual style: ${brandContext.stylePrompt}`,
-      `Color palette: ${brandContext.colors?.join(", ")}`,
-      `Personality: ${brandContext.personality?.join(", ")}`,
-      `Visual descriptors: ${brandContext.visualStyle?.join(", ")}`,
-      "",
-      "Incorporate these brand elements naturally into the image. The user's prompt below describes what to generate — the brand context above describes how it should look and feel.",
-    ].join("\n");
-
+  if (systemContent) {
     messages.push({
       role: "system" as const,
       content: systemContent,

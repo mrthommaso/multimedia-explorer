@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef } from "react";
 import type { MediaResult } from "@/lib/types";
 import type { VideoStatus } from "@/hooks/use-video-generation";
+import { isCreditError } from "@/lib/credit-error";
+import CreditErrorNotice from "./credit-error-notice";
 
 function ElapsedTime() {
   const startRef = useRef(Date.now());
@@ -81,21 +83,10 @@ export default function ImageResult({
   }
 
   if (videoStatus === "failed" && videoError) {
-    const isCredit = /insufficient.*credits|out of credits|not enough credits|credits.*required|payment required/i.test(videoError);
     return (
       <div className="flex flex-col items-center justify-center py-20 space-y-4">
-        {isCredit ? (
-          <>
-            <p className="text-sm text-yellow-400">{videoError}</p>
-            <a
-              href="https://openrouter.ai/settings/credits"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-4 py-2.5 text-sm tracking-wide bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-300 border border-yellow-500/20 rounded-lg transition-all"
-            >
-              Add credits
-            </a>
-          </>
+        {isCreditError(videoError) ? (
+          <CreditErrorNotice message={videoError} />
         ) : (
           <p className="text-sm text-red-400">{videoError}</p>
         )}

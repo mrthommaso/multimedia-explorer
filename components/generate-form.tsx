@@ -5,6 +5,9 @@ import type { BrandData } from "./moodboard";
 import { DEFAULT_TEXT_MODEL, type ReferenceImage, type MediaResult } from "@/lib/types";
 import type { ModelOption } from "@/hooks/use-models";
 import { parseJsonResponse, fallbackErrorMessage } from "@/lib/safe-json";
+import { openRouterKeyHeaders } from "@/lib/api-auth";
+import { isCreditError } from "@/lib/credit-error";
+import CreditErrorNotice from "./credit-error-notice";
 import AuthPrompt from "./auth-prompt";
 
 export default function GenerateForm({
@@ -99,7 +102,7 @@ export default function GenerateForm({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
+          ...openRouterKeyHeaders(apiKey),
         },
         body: JSON.stringify({
           prompt: prompt.trim(),
@@ -148,7 +151,7 @@ export default function GenerateForm({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
+          ...openRouterKeyHeaders(apiKey),
         },
         body: JSON.stringify({
           prompt: prompt.trim(),
@@ -279,25 +282,9 @@ export default function GenerateForm({
           </button>
         </div>
 
-        {error && (() => {
-          const isCredit = /insufficient.*credits|out of credits|not enough credits|credits.*required|payment required/i.test(error);
-          return isCredit ? (
-            <div className="flex items-center gap-2 px-4 py-3 bg-yellow-500/5 border border-yellow-500/20 rounded-xl">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-yellow-400 shrink-0">
-                <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-                <line x1="12" y1="9" x2="12" y2="13" />
-                <line x1="12" y1="17" x2="12.01" y2="17" />
-              </svg>
-              <p className="text-sm text-yellow-400 flex-1">{error}</p>
-              <a
-                href="https://openrouter.ai/settings/credits"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="shrink-0 px-3 py-1.5 text-xs tracking-wide bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-300 border border-yellow-500/20 rounded-lg transition-all"
-              >
-                Add credits
-              </a>
-            </div>
+        {error &&
+          (isCreditError(error) ? (
+            <CreditErrorNotice message={error} />
           ) : (
             <div className="flex items-start gap-2 px-4 py-3 bg-red-500/5 border border-red-500/20 rounded-xl">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-400 shrink-0 mt-0.5">
@@ -307,8 +294,7 @@ export default function GenerateForm({
               </svg>
               <p className="text-sm text-red-400">{error}</p>
             </div>
-          );
-        })()}
+          ))}
 
         {showAuthPrompt && <AuthPrompt onDismiss={() => setShowAuthPrompt(false)} />}
       </form>

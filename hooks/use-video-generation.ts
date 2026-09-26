@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { parseJsonResponse, fallbackErrorMessage } from "@/lib/safe-json";
+import { openRouterKeyHeaders } from "@/lib/api-auth";
 
 export type VideoStatus =
   | "idle"
@@ -85,7 +86,7 @@ export function useVideoGeneration(apiKey: string | null) {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${apiKey}`,
+            ...openRouterKeyHeaders(apiKey),
           },
           body: JSON.stringify(params),
         });
@@ -122,7 +123,7 @@ export function useVideoGeneration(apiKey: string | null) {
         pollingRef.current = setInterval(async () => {
           try {
             const pollRes = await fetch(`/api/video/${jobId}`, {
-              headers: { Authorization: `Bearer ${apiKey}` },
+              headers: openRouterKeyHeaders(apiKey),
             });
             const {
               ok: pollOk,
@@ -156,7 +157,7 @@ export function useVideoGeneration(apiKey: string | null) {
               try {
                 const contentRes = await fetch(
                   `/api/video/${jobId}/content?index=0`,
-                  { headers: { Authorization: `Bearer ${apiKey}` } }
+                  { headers: openRouterKeyHeaders(apiKey) }
                 );
 
                 if (!contentRes.ok) {

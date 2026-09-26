@@ -56,3 +56,16 @@ export interface HistoryEntry {
   generateAudio?: boolean;
   videoJobId?: string;
 }
+
+/**
+ * Request options accepted by an image model that OpenRouter serves from
+ * `POST /api/v1/images`, taken from that endpoint's own catalogue. Models without an entry
+ * are not served there and go through chat completions instead.
+ */
+export interface ImageModelConfig {
+  aspectRatios: string[];
+  resolutions: string[];
+  /** Image-to-image models reject a request that has no reference image. */
+  requiresReference: boolean;
+  maxReferences: number;
+}

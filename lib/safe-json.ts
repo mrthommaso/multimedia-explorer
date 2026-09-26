@@ -25,7 +25,8 @@ export function fallbackErrorMessage(status: number, text: string): string {
 
   if (status === 413) return "Request too large — try smaller or fewer reference images.";
   if (status === 429) return "Rate limited — please wait a moment and try again.";
-  if (status === 401 || status === 403) return "Authentication failed — please sign in again.";
+  if (status === 401 || status === 403)
+    return "Authentication failed — the access key may be invalid, expired, or out of budget.";
   if (status >= 500) return `Upstream error (${status})${snippet ? `: ${snippet}` : ""}`;
   if (snippet) return `Error ${status}: ${snippet}`;
   return `Request failed with status ${status}`;

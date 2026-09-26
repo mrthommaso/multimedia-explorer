@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readOpenRouterKey } from "@/lib/api-auth";
 import { createClient } from "@/lib/openrouter";
 
 export async function POST(request: NextRequest) {
-  const authHeader = request.headers.get("authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
+  const apiKey = readOpenRouterKey(request);
+  if (!apiKey) {
     return NextResponse.json({ error: "Missing API key" }, { status: 401 });
   }
-  const apiKey = authHeader.slice(7);
 
   const { url, prompt, model } = await request.json();
   if (!url && !prompt) {
