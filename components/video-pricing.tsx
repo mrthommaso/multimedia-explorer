@@ -15,17 +15,22 @@ import {
  * number it cannot stand behind.
  */
 export default function VideoPricing({
+  modelId,
   config,
   resolution,
+  aspectRatio,
   generateAudio,
-  hasInputReference,
+  referenceImageCount,
   duration,
   script,
 }: {
+  modelId: string;
   config: VideoModelConfig | null;
   resolution: string;
+  aspectRatio: string;
   generateAudio: boolean;
-  hasInputReference: boolean;
+  /** Reference images travel as `input_references`, not as image-to-video frames. */
+  referenceImageCount: number;
   /** Omitted for models without a duration control. */
   duration?: number;
   /** Spoken script, for models whose length follows the speech. */
@@ -33,10 +38,12 @@ export default function VideoPricing({
 }) {
   const tariff = describeTariff(config);
   const estimate = estimateVideoCost({
+    modelId,
     config,
     resolution,
+    aspectRatio,
     generateAudio,
-    hasInputReference,
+    referenceImageCount,
     duration,
     script,
   });

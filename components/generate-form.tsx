@@ -353,10 +353,12 @@ export default function GenerateForm({
 
         {isVideoModel && (
           <VideoPricing
+            modelId={model}
             config={videoConfig}
             resolution={resolution}
+            aspectRatio={aspectRatio}
             generateAudio={generateAudio}
-            hasInputReference={referenceImages.length > 0}
+            referenceImageCount={referenceImages.length}
             duration={
               videoConfig && videoConfig.durations.length > 0 ? duration : undefined
             }

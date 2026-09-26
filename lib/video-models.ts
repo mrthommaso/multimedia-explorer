@@ -35,6 +35,7 @@ export async function getVideoModelConfigs(): Promise<Record<string, VideoModelC
         // than rejected here, so one odd model cannot break model discovery.
         pricingSkus:
           m.pricing_skus && typeof m.pricing_skus === "object" ? m.pricing_skus : {},
+        supportedSizes: Array.isArray(m.supported_sizes) ? m.supported_sizes : [],
         ...(REQUIRES_AUDIO_MODELS.has(m.id) && { requiresAudio: true }),
       };
     }

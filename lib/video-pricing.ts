@@ -18,9 +18,11 @@ export type SkuUnit =
   | "usdPerSecond"
   /** Cents per second of output video. */
   | "centsPerSecond"
-  /** USD per provider-defined video token — the token count formula is not published. */
+  /** USD per provider-defined video token. */
   | "usdPerToken"
-  /** Anything we cannot turn into a generation cost (per-image fees, minimums, …). */
+  /** A floor on the total, not a rate. */
+  | "minimumUsd"
+  /** A charge we do not model (per-input-image fees, per-megapixel units, …). */
   | "other";
 
 export interface ParsedSku {
@@ -115,6 +117,7 @@ function parseSkuKey(key: string, rawPrice: string): ParsedSku | null {
   else if (rest === "cents_per_second_output" || rest === "cents_per_video_output_second")
     sku.unit = "centsPerSecond";
   else if (rest === "video_tokens") sku.unit = "usdPerToken";
+  else if (rest === "minimum_cents_per_generation") sku.unit = "minimumUsd";
   else sku.unit = "other";
 
   sku.pinned = [
@@ -184,6 +187,9 @@ export function describeTariff(config: VideoModelConfig | null | undefined): Tar
     if (sku.unit === "usdPerToken") {
       return { label: describeDimensions(sku), rate: `${formatUsd(sku.price)} / video token` };
     }
+    if (sku.unit === "minimumUsd") {
+      return { label: "minimum per generation", rate: formatUsd(sku.price / 100) };
+    }
     // Unrecognised unit: show the key so the number is never mislabelled.
     return { label: sku.key.replace(/_/g, " "), rate: String(sku.price) };
   });
@@ -210,11 +216,99 @@ export function estimateScriptDurationSeconds(
   };
 }
 
+/**
+ * Families whose video-token count OpenRouter publishes a formula for:
+ *
+ *   tokens = (width × height × fps × duration) / 1024
+ *
+ * Listed explicitly per model rather than inferred from the `video_tokens` unit, because
+ * the unit says what a token costs, not how many a generation produces. A token-priced
+ * model absent from here stays `unavailable` instead of being given a guessed formula.
+ */
+const VIDEO_TOKEN_FORMULAS: Record<string, { fps: number }> = {
+  "bytedance/seedance-2.5": { fps: 24 },
+  "bytedance/seedance-2.0": { fps: 24 },
+  "bytedance/seedance-2.0-fast": { fps: 24 },
+  "bytedance/seedance-2.0-mini": { fps: 24 },
+  "bytedance/seedance-1-5-pro": { fps: 24 },
+};
+
+/** Nominal frame height each resolution label denotes. */
+const RESOLUTION_HEIGHTS: Record<string, number> = {
+  "480p": 480,
+  "720p": 720,
+  "768p": 768,
+  "1024p": 1024,
+  "1080p": 1080,
+  "4K": 2160,
+};
+
+function parseAspectRatio(ratio: string): number | null {
+  const [w, h] = ratio.split(":").map(Number);
+  return Number.isFinite(w) && Number.isFinite(h) && h > 0 ? w / h : null;
+}
+
+/**
+ * Exact output dimensions for a request, taken from the model's own `supported_sizes`.
+ *
+ * The size is the one whose aspect ratio matches the request and whose pixel count sits
+ * closest to what the resolution label denotes. Nothing is derived when the model
+ * publishes no sizes, or none match — a guessed frame size would silently scale the whole
+ * token estimate.
+ */
+function resolveOutputSize(
+  config: VideoModelConfig,
+  resolution: string,
+  aspectRatio: string
+): { width: number; height: number } | null {
+  const target = parseAspectRatio(aspectRatio);
+  const nominalHeight = RESOLUTION_HEIGHTS[resolution];
+  if (target === null || !nominalHeight) return null;
+  // A resolution the model does not offer would otherwise fall back to the nearest size
+  // it does, quietly pricing a different frame than the one requested.
+  if (config.resolutions.length > 0 && !config.resolutions.includes(resolution)) return null;
+
+  const sizes = config.supportedSizes
+    .map((size) => {
+      const [width, height] = size.split("x").map(Number);
+      return Number.isFinite(width) && Number.isFinite(height) && height > 0
+        ? { width, height }
+        : null;
+    })
+    .filter((s): s is { width: number; height: number } => s !== null);
+
+  const matching = sizes.filter(
+    (s) => Math.abs(s.width / s.height - target) / target < 0.05
+  );
+  if (matching.length === 0) return null;
+
+  const nominalArea = (16 / 9) * nominalHeight * nominalHeight;
+  return matching.reduce((best, s) =>
+    Math.abs(s.width * s.height - nominalArea) <
+    Math.abs(best.width * best.height - nominalArea)
+      ? s
+      : best
+  );
+}
+
 export interface CostEstimateParams {
+  /** Model id, needed to look up a documented token formula. */
+  modelId: string;
   config: VideoModelConfig | null | undefined;
   resolution: string;
+  aspectRatio: string;
   generateAudio: boolean;
-  hasInputReference: boolean;
+  /**
+   * How many reference images the request carries. These travel as `input_references`
+   * (reference-to-video) and deliberately do **not** select image-to-video pricing; they
+   * only matter for per-input-image charges.
+   */
+  referenceImageCount: number;
+  /**
+   * True only when the request sends `frame_images`, which is what image-to-video pricing
+   * describes. This fork does not implement frame images, so it is always false today.
+   */
+  usesFrameImages?: boolean;
   /** Chosen clip length, when the model exposes a duration control. */
   duration?: number;
   /** Spoken script, for models whose length follows the speech. */
@@ -240,12 +334,17 @@ function dominates(a: ParsedSku, b: ParsedSku): boolean {
  */
 function selectSku(
   skus: ParsedSku[],
-  params: Pick<CostEstimateParams, "resolution" | "generateAudio" | "hasInputReference">
+  params: Pick<
+    CostEstimateParams,
+    "resolution" | "generateAudio" | "usesFrameImages"
+  >
 ): { sku: ParsedSku } | { ambiguous: true } | null {
-  const requestedMode = params.hasInputReference ? "image" : "text";
+  // `image_to_video_*` prices a frame-image request. Reference images are a different
+  // input (`input_references`) and must not switch the request onto that tariff.
+  const requestedMode = params.usesFrameImages ? "image" : "text";
 
   const candidates = skus.filter((sku) => {
-    if (sku.unit === "other") return false;
+    if (sku.unit === "other" || sku.unit === "minimumUsd") return false;
     if (sku.resolution && sku.resolution !== params.resolution) return false;
     if (sku.audio !== undefined && sku.audio !== params.generateAudio) return false;
     // A video-input SKU never applies here: this app submits text or image references only.
@@ -273,10 +372,33 @@ function selectSku(
  * to be derived (a script's spoken length). `unavailable` means the tariff cannot be turned
  * into a number for this request, in which case the caller still shows the rates.
  */
+/** Per-input-image charges only bite when the request actually carries reference images. */
+function isPerInputImage(sku: ParsedSku): boolean {
+  const key = sku.key.toLowerCase();
+  return key.includes("image_input") || key === "reference_images";
+}
+
 export function estimateVideoCost(params: CostEstimateParams): CostEstimate {
   const skus = parsePricingSkus(params.config?.pricingSkus);
   if (skus.length === 0) {
     return { confidence: "unavailable", explanation: "No pricing published for this model." };
+  }
+
+  // Charges that sit alongside the chosen rate rather than replacing it. A minimum we can
+  // apply; anything else that might add to this request means the total is not ours to
+  // state, so the tariff is shown instead of a number that ignores it.
+  const minimumUsd = skus
+    .filter((s) => s.unit === "minimumUsd")
+    .reduce<number | null>((min, s) => Math.max(min ?? 0, s.price / 100), null);
+
+  const unmodelledCharge = skus.some(
+    (s) => s.unit === "other" && (params.referenceImageCount > 0 || !isPerInputImage(s))
+  );
+  if (unmodelledCharge) {
+    return {
+      confidence: "unavailable",
+      explanation: "This model publishes an additional charge we cannot apply up front.",
+    };
   }
 
   const selection = selectSku(skus, params);
@@ -291,16 +413,47 @@ export function estimateVideoCost(params: CostEstimateParams): CostEstimate {
   }
 
   const { sku } = selection;
+  const withMinimum = (amount: number) =>
+    minimumUsd !== null ? Math.max(amount, minimumUsd) : amount;
+
+  // Token-priced models: usable only where OpenRouter documents the token formula and the
+  // exact output size can be read from the model's own supported sizes.
+  if (sku.unit === "usdPerToken") {
+    const formula = VIDEO_TOKEN_FORMULAS[params.modelId];
+    const size = params.config
+      ? resolveOutputSize(params.config, params.resolution, params.aspectRatio)
+      : null;
+
+    if (!formula || !size) {
+      return {
+        confidence: "unavailable",
+        explanation: !formula
+          ? "Priced per video token; no token formula is published for this model."
+          : "Priced per video token; the output frame size cannot be determined from these settings.",
+      };
+    }
+    if (typeof params.duration !== "number" || params.duration <= 0) {
+      return {
+        confidence: "unavailable",
+        explanation: "Priced per video token; a duration is needed to count them.",
+      };
+    }
+
+    const tokensPerSecond = (size.width * size.height * formula.fps) / 1024;
+    const perSecond = tokensPerSecond * sku.price;
+    return {
+      confidence: "exact",
+      currency: "USD",
+      amount: withMinimum(perSecond * params.duration),
+      rateLabel: `${formatUsd(perSecond)} / second at ${size.width}×${size.height}`,
+    };
+  }
+
   const perSecond = perSecondUsd(sku);
   if (perSecond === null) {
-    // Token-priced models: the token count depends on a provider formula that is not
-    // published, so any number here would be invented.
     return {
       confidence: "unavailable",
-      explanation:
-        sku.unit === "usdPerToken"
-          ? "Priced per video token; the token count is only known after generation."
-          : "This model's pricing unit cannot be applied before generation.",
+      explanation: "This model's pricing unit cannot be applied before generation.",
     };
   }
 
@@ -311,7 +464,7 @@ export function estimateVideoCost(params: CostEstimateParams): CostEstimate {
     return {
       confidence: "exact",
       currency: "USD",
-      amount: perSecond * params.duration,
+      amount: withMinimum(perSecond * params.duration),
       rateLabel,
     };
   }
@@ -322,8 +475,8 @@ export function estimateVideoCost(params: CostEstimateParams): CostEstimate {
     return {
       confidence: "estimated",
       currency: "USD",
-      minAmount: perSecond * spoken.min,
-      maxAmount: perSecond * spoken.max,
+      minAmount: withMinimum(perSecond * spoken.min),
+      maxAmount: withMinimum(perSecond * spoken.max),
       rateLabel,
       estimatedDurationRange: spoken,
     };

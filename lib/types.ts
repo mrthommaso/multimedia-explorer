@@ -32,6 +32,8 @@ export interface VideoModelConfig {
    * flattening this to a single rate would be wrong for multi-SKU models.
    */
   pricingSkus: Record<string, string>;
+  /** Exact output frame sizes (`"1280x720"`) this model can produce, when published. */
+  supportedSizes: string[];
 }
 
 /**
@@ -63,6 +65,7 @@ export const DEFAULT_VIDEO_CONFIG: VideoModelConfig = {
   supportsAudio: false,
   passthroughParameters: [],
   pricingSkus: {},
+  supportedSizes: [],
 };
 
 export type MediaResult =
