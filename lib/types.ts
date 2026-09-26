@@ -29,21 +29,22 @@ export interface VideoModelConfig {
 }
 
 /**
- * Whether a video model speaks its prompt instead of depicting it.
+ * Video models whose prompt is a spoken script rather than a description of a scene, and
+ * which animate one supplied portrait.
  *
- * A model that accepts a `voice_id` passthrough parameter is a talking-avatar model: the
- * prompt is a spoken script and the model animates a supplied portrait rather than
- * generating a scene. OpenRouter exposes no dedicated flag for this, so the capability is
- * inferred from the live parameter list, which keeps it generic for future avatar models
- * instead of hardcoding a model id.
+ * This is a semantic profile, not a capability: `allowed_passthrough_parameters` states
+ * which provider keys a model accepts, not what its prompt means or whether an image is
+ * mandatory. Accepting a `voice_id` does not by itself imply any of that, so the models
+ * carrying these semantics are named explicitly and reviewed as they are added. Which
+ * controls appear for them stays driven by the live parameter list.
  */
-export function isScriptVideoModel(
-  config: VideoModelConfig | null | undefined
-): boolean {
-  return config?.passthroughParameters.includes("voice_id") ?? false;
+const SCRIPT_VIDEO_MODELS = new Set(["heygen/avatar-iv"]);
+
+export function isScriptVideoModel(modelId: string): boolean {
+  return SCRIPT_VIDEO_MODELS.has(modelId);
 }
 
-/** Avatar-style models animate exactly one source portrait. */
+/** Script-avatar models animate exactly one source portrait. */
 export const SCRIPT_MODEL_MAX_REFERENCES = 1;
 
 /** Models where audio generation is mandatory */

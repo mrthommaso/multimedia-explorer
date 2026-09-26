@@ -34,8 +34,8 @@ export async function POST(request: NextRequest) {
   }
 
   // Provider-specific controls, narrowed to this model's allowed_passthrough_parameters
-  // and nested into provider.options.<slug>.parameters. Anything unknown is dropped here
-  // rather than trusted from the browser.
+  // and nested into provider.options.<slug>. Anything unknown is dropped here rather than
+  // trusted from the browser.
   const provider = await buildProviderOptions(model, body.providerOptions);
   if (provider) payload.provider = provider;
 

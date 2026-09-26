@@ -71,9 +71,10 @@ export default function GenerateForm({
   const [motionPrompt, setMotionPrompt] = useState("");
   const [expressiveness, setExpressiveness] = useState("");
 
-  // Avatar-style models speak the prompt and animate one supplied portrait, so the form
-  // changes meaning rather than just gaining extra fields.
-  const isScriptModel = isVideoModel && isScriptVideoModel(videoConfig);
+  // Script-avatar models speak the prompt and animate one supplied portrait, so the form
+  // changes meaning rather than just gaining extra fields. Which controls it then offers
+  // still comes from the model's live passthrough parameters.
+  const isScriptModel = isVideoModel && isScriptVideoModel(model);
   const allows = (param: string) =>
     videoConfig?.passthroughParameters.includes(param) ?? false;
 
