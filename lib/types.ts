@@ -24,7 +24,28 @@ export interface VideoModelConfig {
   supportsAudio: boolean;
   /** When true, audio generation is mandatory and cannot be toggled off */
   requiresAudio?: boolean;
+  /** Provider-specific keys this model accepts, from `allowed_passthrough_parameters`. */
+  passthroughParameters: string[];
 }
+
+/**
+ * Video models whose prompt is a spoken script rather than a description of a scene, and
+ * which animate one supplied portrait.
+ *
+ * This is a semantic profile, not a capability: `allowed_passthrough_parameters` states
+ * which provider keys a model accepts, not what its prompt means or whether an image is
+ * mandatory. Accepting a `voice_id` does not by itself imply any of that, so the models
+ * carrying these semantics are named explicitly and reviewed as they are added. Which
+ * controls appear for them stays driven by the live parameter list.
+ */
+const SCRIPT_VIDEO_MODELS = new Set(["heygen/avatar-iv"]);
+
+export function isScriptVideoModel(modelId: string): boolean {
+  return SCRIPT_VIDEO_MODELS.has(modelId);
+}
+
+/** Script-avatar models animate exactly one source portrait. */
+export const SCRIPT_MODEL_MAX_REFERENCES = 1;
 
 /** Models where audio generation is mandatory */
 export const REQUIRES_AUDIO_MODELS = new Set(["openai/sora-2-pro"]);
@@ -34,6 +55,7 @@ export const DEFAULT_VIDEO_CONFIG: VideoModelConfig = {
   resolutions: VIDEO_RESOLUTIONS,
   aspectRatios: VIDEO_ASPECT_RATIOS,
   supportsAudio: false,
+  passthroughParameters: [],
 };
 
 export type MediaResult =

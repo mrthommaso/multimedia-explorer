@@ -28,6 +28,8 @@ interface SubmitParams {
   resolution?: string;
   generate_audio?: boolean;
   input_references?: Array<{ type: "image_url"; image_url: { url: string } }>;
+  /** Flat provider-specific options; the route nests and filters them. */
+  providerOptions?: Record<string, unknown>;
 }
 
 const POLL_INTERVAL = 5000;
