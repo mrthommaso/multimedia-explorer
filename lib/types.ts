@@ -24,7 +24,27 @@ export interface VideoModelConfig {
   supportsAudio: boolean;
   /** When true, audio generation is mandatory and cannot be toggled off */
   requiresAudio?: boolean;
+  /** Provider-specific keys this model accepts, from `allowed_passthrough_parameters`. */
+  passthroughParameters: string[];
 }
+
+/**
+ * Whether a video model speaks its prompt instead of depicting it.
+ *
+ * A model that accepts a `voice_id` passthrough parameter is a talking-avatar model: the
+ * prompt is a spoken script and the model animates a supplied portrait rather than
+ * generating a scene. OpenRouter exposes no dedicated flag for this, so the capability is
+ * inferred from the live parameter list, which keeps it generic for future avatar models
+ * instead of hardcoding a model id.
+ */
+export function isScriptVideoModel(
+  config: VideoModelConfig | null | undefined
+): boolean {
+  return config?.passthroughParameters.includes("voice_id") ?? false;
+}
+
+/** Avatar-style models animate exactly one source portrait. */
+export const SCRIPT_MODEL_MAX_REFERENCES = 1;
 
 /** Models where audio generation is mandatory */
 export const REQUIRES_AUDIO_MODELS = new Set(["openai/sora-2-pro"]);
@@ -34,6 +54,7 @@ export const DEFAULT_VIDEO_CONFIG: VideoModelConfig = {
   resolutions: VIDEO_RESOLUTIONS,
   aspectRatios: VIDEO_ASPECT_RATIOS,
   supportsAudio: false,
+  passthroughParameters: [],
 };
 
 export type MediaResult =
