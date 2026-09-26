@@ -79,6 +79,7 @@ export default function Home() {
         type: "video",
         videoUrl: videoState.videoUrl,
         model: videoState.model ?? model,
+        ...(videoState.costUsd !== null && { costUsd: videoState.costUsd }),
       };
       setMediaResult(result);
       handleVideoResult(result);
@@ -307,6 +308,8 @@ export default function Home() {
       duration,
       generateAudio,
       videoJobId: videoState.jobId ?? undefined,
+      ...(result.type === "video" &&
+        result.costUsd !== undefined && { actualCostUsd: result.costUsd }),
     };
 
     // Save data-URL reference images to IndexedDB
@@ -419,7 +422,12 @@ export default function Home() {
         if (!res.ok) throw new Error("expired");
         const blob = await res.blob();
         const url = URL.createObjectURL(blob);
-        setMediaResult({ type: "video", videoUrl: url, model: entry.model });
+        setMediaResult({
+          type: "video",
+          videoUrl: url,
+          model: entry.model,
+          ...(entry.actualCostUsd !== undefined && { costUsd: entry.actualCostUsd }),
+        });
       } catch {
         setMediaResult({ type: "video", videoUrl: "", model: entry.model });
       } finally {

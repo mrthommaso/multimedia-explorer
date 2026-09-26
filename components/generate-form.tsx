@@ -15,6 +15,7 @@ import { parseJsonResponse, fallbackErrorMessage } from "@/lib/safe-json";
 import { openRouterKeyHeaders } from "@/lib/api-auth";
 import { isCreditError } from "@/lib/credit-error";
 import CreditErrorNotice from "./credit-error-notice";
+import VideoPricing from "./video-pricing";
 import AuthPrompt from "./auth-prompt";
 
 export default function GenerateForm({
@@ -348,6 +349,21 @@ export default function GenerateForm({
               )}
             </div>
           </div>
+        )}
+
+        {isVideoModel && (
+          <VideoPricing
+            modelId={model}
+            config={videoConfig}
+            resolution={resolution}
+            aspectRatio={aspectRatio}
+            generateAudio={generateAudio}
+            referenceImageCount={referenceImages.length}
+            duration={
+              videoConfig && videoConfig.durations.length > 0 ? duration : undefined
+            }
+            script={isScriptModel ? prompt : undefined}
+          />
         )}
 
         {/* Bottom bar: Improve prompt (left) + Generate (right) */}

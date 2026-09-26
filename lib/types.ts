@@ -26,6 +26,14 @@ export interface VideoModelConfig {
   requiresAudio?: boolean;
   /** Provider-specific keys this model accepts, from `allowed_passthrough_parameters`. */
   passthroughParameters: string[];
+  /**
+   * OpenRouter's `pricing_skus` for this model, kept in its published form: a map of SKU
+   * key to price. The keys encode their own dimensions (resolution, audio, input mode), so
+   * flattening this to a single rate would be wrong for multi-SKU models.
+   */
+  pricingSkus: Record<string, string>;
+  /** Exact output frame sizes (`"1280x720"`) this model can produce, when published. */
+  supportedSizes: string[];
 }
 
 /**
@@ -56,11 +64,19 @@ export const DEFAULT_VIDEO_CONFIG: VideoModelConfig = {
   aspectRatios: VIDEO_ASPECT_RATIOS,
   supportsAudio: false,
   passthroughParameters: [],
+  pricingSkus: {},
+  supportedSizes: [],
 };
 
 export type MediaResult =
   | { type: "image"; imageUrl: string; model: string }
-  | { type: "video"; videoUrl: string; model: string };
+  | {
+      type: "video";
+      videoUrl: string;
+      model: string;
+      /** Actual cost in USD as reported by OpenRouter, when the job returned one. */
+      costUsd?: number;
+    };
 
 export interface HistoryEntry {
   id: string;
@@ -77,6 +93,11 @@ export interface HistoryEntry {
   duration?: number;
   generateAudio?: boolean;
   videoJobId?: string;
+  /**
+   * Actual cost in USD reported by OpenRouter for this generation. Optional: entries
+   * written before cost was recorded, or jobs that reported none, simply omit it.
+   */
+  actualCostUsd?: number;
 }
 
 /**
